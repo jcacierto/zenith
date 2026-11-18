@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<title>Zenith — Flight Monitoring and Visualization</title>
+<link href="https://fonts.cdnfonts.com/css/d-din" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    color-scheme:dark;
+    --bg:#000000;
+    --ink:#F2F2F2;
+    --muted:#9AA3AD;
+    --steel:#C7D2DE;
+    --line:rgba(199,210,222,.16);
+    /* Corporate mode-choice palette (original professional-options page) */
+    --panel:#000000;
+    --text:#F2F2F2;
+    --muted-corp:#9A9A9A;
+    --accent:#C7D2DE;
+    --border:#26262A;
+    --border-strong:#3A3A40;
+    --live:#4ADE80;
+    --recorded:#5AC8E6;
+    --head:'D-DIN','DIN Alternate','Helvetica Neue',Arial,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%; background:#000000; background-color:#000000; overscroll-behavior:none}
+  body{
+    margin:0;
+    background:#000000;
+    background-color:#000000;
+    color:var(--ink);
+    font-family:'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* Fixed pure-black underlay: paints the entire viewport black regardless of
+     document height, iframe sizing, or rubber-band overscroll in the app
+     webview, so the shell's default backdrop can never show through as gray. */
+  body::before{
+    content:""; position:fixed; inset:0;
+    background:#000000; background-color:#000000;
+    z-index:-1; pointer-events:none;
+  }
+  button{min-height:44px}
+  .stage{
+    min-height:100dvh;
+    background:#000000; background-color:#000000;
+    display:flex; align-items:center; justify-content:center;
+    padding:32px 24px;
+  }
+  .view{
+    display:flex; flex-direction:column; align-items:center; text-align:center;
+    width:100%; max-width:520px;
+    background:#000000; background-color:#000000;
+    animation:enter .7s cubic-bezier(.22,1,.36,1) both;
+  }
+  .view[hidden]{display:none}
+  @keyframes enter{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+
+  /* ——— Ripple mark ——— */
+  .ripple{width:76px; height:76px; flex:none}
+  .ripple .ring{transform-origin:38px 38px; animation:pulse 2.8s cubic-bezier(.22,1,.36,1) infinite}
+  .ripple .r2{animation-delay:.18s}
+  .ripple .r3{animation-delay:.36s}
+  @keyframes pulse{
+    0%,100%{transform:scale(1); opacity:var(--o)}
+    50%{transform:scale(1.045); opacity:calc(var(--o) * .72)}
+  }
+
+  .wordmark{
+    margin:26px 0 0;
+    font-family:'D-DIN','DIN Alternate','Archivo',system-ui,sans-serif;
+    font-weight:700;
+    font-size:clamp(44px, 9vw, 56px);
+    letter-spacing:.34em;
+    /* optically re-centre tracked text */
+    text-indent:.34em;
+    line-height:1;
+    color:var(--ink);
+  }
+  .tagline{
+    margin:16px 0 0;
+    font-family:'D-DIN','DIN Alternate',system-ui,sans-serif;
+    font-size:11.5px;
+    font-weight:500;
+    letter-spacing:.32em;
+    text-indent:.32em;
+    line-height:1.7;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+  @media (max-width:480px){
+    .tagline{white-space:normal; letter-spacing:.26em; text-indent:0; padding:0 6px}
+    .wordmark{letter-spacing:.28em; text-indent:.28em}
+  }
+  .enter-btn{
+    margin-top:44px;
+    appearance:none; border:1px solid var(--ink); cursor:pointer;
+    background:var(--ink); color:#000000;
+    font-family:'D-DIN','DIN Alternate',system-ui,sans-serif;
+    font-weight:700; font-size:13px;
+    letter-spacing:.28em; text-indent:.28em;
+    padding:0 42px; height:52px;
+    border-radius:0;
+    transition:background .2s ease, border-color .2s ease, color .2s ease;
+  }
+  .enter-btn:hover{background:var(--steel); border-color:var(--steel)}
+  .enter-btn:focus-visible, .text-link:focus-visible, .back-link:focus-visible{outline:2px solid var(--steel); outline-offset:4px}
+  .enter-btn:active{transform:translateY(1px)}
+
+  /* ——— Mode choice — restored original professional-options Corporate page ——— */
+  #choice{max-width:860px}
+  .corp-inner{width:100%; text-align:center}
+  .corp-wordmark{display:flex; align-items:center; justify-content:center; gap:10px}
+  .corp-wordmark .name{
+    font-family:var(--head); font-weight:700; letter-spacing:.3em;
+    font-size:20px; line-height:1; color:var(--text);
+  }
+  .version{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.22em;
+    color:var(--muted-corp); margin-top:10px; text-align:center;
+  }
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--live); flex:none}
+  .dot.pulse{animation:dotPulse 2.6s ease-in-out infinite}
+  @keyframes dotPulse{0%,100%{opacity:1} 50%{opacity:.35}}
+  .badge{
+    display:inline-flex; align-items:center; gap:7px;
+    font-family:var(--head); font-weight:600; font-size:11px; letter-spacing:.18em;
+  }
+  .badge.live{color:var(--live)}
+  .badge.rec{color:var(--recorded)}
+  .badge.rec .dot{background:var(--recorded); animation:none}
+
+  /* Logo pulse (original Inverse-Square Ripple, unchanged geometry) */
+  .logo-mark{flex:none; display:block; overflow:visible}
+  .logo-mark .ring, .logo-mark .core{transform-box:fill-box; transform-origin:center}
+  .logo-mark .ring-1{animation:ringPulse1 2.8s ease-in-out infinite}
+  .logo-mark .ring-2{animation:ringPulse2 2.8s ease-in-out .35s infinite}
+  .logo-mark .ring-3{animation:ringPulse3 2.8s ease-in-out .7s infinite}
+  .logo-mark .core{animation:corePulse 2.8s ease-in-out infinite}
+  @keyframes ringPulse1{0%,100%{transform:scale(1); opacity:1} 35%{transform:scale(1.22); opacity:.45} 70%{transform:scale(1); opacity:1}}
+  @keyframes ringPulse2{0%,100%{transform:scale(1); opacity:.58} 35%{transform:scale(1.18); opacity:.22} 70%{transform:scale(1); opacity:.58}}
+  @keyframes ringPulse3{0%,100%{transform:scale(1); opacity:.30} 35%{transform:scale(1.14); opacity:.06} 70%{transform:scale(1); opacity:.30}}
+  @keyframes corePulse{0%,100%{transform:scale(1); opacity:1} 35%{transform:scale(1.45); opacity:.65} 70%{transform:scale(1); opacity:1}}
+
+  .corp-line{color:var(--muted-corp); font-size:15px; margin:34px 0 40px}
+  .corp-modes{display:grid; grid-template-columns:1fr 1fr; gap:16px; text-align:left}
+  .corp-mode{
+    border:1px solid var(--border); background:var(--panel);
+    padding:22px 24px 18px; transition:border-color .15s ease;
+    cursor:pointer;
+  }
+  .corp-mode:hover{border-color:var(--border-strong)}
+  .corp-mode:focus-visible{outline:2px solid var(--steel); outline-offset:3px}
+  .corp-mode:active{border-color:var(--accent)}
+  .corp-mode .cm-top{display:flex; align-items:center; justify-content:space-between; gap:12px}
+  .corp-mode h3{
+    font-family:var(--head); font-weight:700; letter-spacing:.18em;
+    font-size:14.5px; margin:0; color:var(--text);
+  }
+  .corp-mode p{color:var(--muted-corp); font-size:13.5px; margin:10px 0 16px; line-height:1.55}
+  .corp-mode .cm-readout{
+    font-family:var(--mono); font-size:11.5px; color:var(--muted-corp);
+    margin:0 0 14px; letter-spacing:.02em; font-variant-numeric:tabular-nums;
+  }
+  .text-link{
+    appearance:none; background:none; border:0; padding:4px 0; color:var(--text);
+    font-size:13.5px; font-weight:500; letter-spacing:.02em; min-height:36px; cursor:pointer;
+    font-family:'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .text-link .arr{color:var(--accent); margin-left:6px}
+  .text-link:hover{color:var(--accent)}
+
+  /* Blackbox sweep — thin timeline with a slow-moving playhead */
+  .sweep{position:relative; height:2px; background:var(--border); margin:0 0 14px; overflow:hidden}
+  .sweep span{
+    position:absolute; top:0; left:0; height:100%; width:28%;
+    background:var(--recorded); animation:sweepMove 4.8s ease-in-out infinite;
+  }
+  @keyframes sweepMove{0%{transform:translateX(-110%)} 100%{transform:translateX(400%)}}
+
+  /* Soft fade / rise on entry */
+  .rise{animation:riseIn .9s ease both}
+  .rise-1{animation-delay:.08s}
+  .rise-2{animation-delay:.18s}
+  .rise-3{animation-delay:.30s}
+  .rise-4{animation-delay:.42s}
+  @keyframes riseIn{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+
+  .back-link{
+    appearance:none; background:none; border:0; padding:4px 0; color:var(--muted-corp);
+    font-size:13px; letter-spacing:.02em; min-height:36px; margin-top:28px; cursor:pointer;
+    font-family:'Inter', system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .back-link:hover{color:var(--accent); text-decoration:underline}
+
+  @media (max-width:760px){
+    .corp-modes{grid-template-columns:1fr}
+  }
+
+  /* ——— Destination views (Real-time dashboard / Blackbox) ——— */
+  .wide-view{max-width:1020px; text-align:left; align-items:stretch}
+  .wide-view .corp-wordmark{justify-content:flex-start}
+  .dash-head{display:flex; align-items:center; justify-content:space-between; gap:16px}
+  .veh-line{
+    font-family:var(--mono); font-size:11px; letter-spacing:.14em;
+    color:var(--muted-corp); margin:12px 0 0;
+  }
+  .tabs{display:flex; gap:26px; margin:30px 0 22px; border-bottom:1px solid var(--border)}
+  .tab{
+    appearance:none; background:none; border:0; cursor:pointer; min-height:40px;
+    padding:0 2px 10px; color:var(--muted-corp);
+    font-family:var(--head); font-weight:700; font-size:12.5px; letter-spacing:.2em;
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tab.active{color:var(--text); border-bottom-color:var(--accent)}
+  .tab:focus-visible{outline:2px solid var(--steel); outline-offset:3px}
+  .stat-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px}
+  .stat{border:1px solid var(--border); background:var(--panel); padding:18px 18px 14px}
+  .stat-label{
+    display:block; font-family:var(--head); font-weight:600; font-size:11px;
+    letter-spacing:.22em; color:var(--muted-corp); text-transform:uppercase;
+  }
+  .stat-value{
+    display:block; font-family:var(--mono); font-weight:600; font-variant-numeric:tabular-nums;
+    font-size:clamp(25px, 3.6vw, 33px); color:var(--text); margin-top:10px; line-height:1;
+  }
+  .stat-value small{font-size:13px; color:var(--muted-corp); font-weight:400}
+  .panel{border:1px solid var(--border); background:var(--panel); padding:20px 22px 8px; margin-top:14px}
+  .panel-title{
+    font-family:var(--head); font-weight:700; letter-spacing:.18em;
+    font-size:13.5px; margin:0 0 6px; color:var(--text); text-transform:uppercase;
+  }
+  .motor-row{
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 26px;
+    padding:13px 0; border-top:1px solid var(--border);
+  }
+  .motor-name{font-family:var(--head); font-weight:700; font-size:14px; letter-spacing:.14em; color:var(--text); min-width:34px}
+  .mstat{display:inline-flex; align-items:baseline; gap:7px}
+  .mstat label{font-family:var(--head); font-size:10px; font-weight:600; letter-spacing:.18em; color:var(--muted-corp)}
+  .mstat b{font-family:var(--mono); font-size:13px; font-weight:500; color:var(--text); font-variant-numeric:tabular-nums}
+  .mstat b.ok{color:var(--live)}
+  .log-head, .log-row{
+    display:grid; grid-template-columns:82px 104px 92px 1fr; gap:12px;
+    padding:11px 0; border-top:1px solid var(--border); align-items:baseline;
+  }
+  .log-head{border-top:0; padding-top:4px}
+  .log-head span{font-family:var(--head); font-size:10px; font-weight:600; letter-spacing:.2em; color:var(--muted-corp)}
+  .log-time, .log-type{font-family:var(--mono); font-size:12px; color:var(--muted-corp); font-variant-numeric:tabular-nums}
+  .log-type{color:var(--text)}
+  .log-level{font-family:var(--head); font-size:10.5px; font-weight:700; letter-spacing:.16em; color:var(--steel)}
+  .log-level.warn{color:#E8B33C}
+  .log-event{font-size:13.5px; color:var(--text); line-height:1.45}
+
+  /* Blackbox picker + replay */
+  .bb-list{display:flex; flex-direction:column; gap:14px; margin-top:26px}
+  .bb-flight{
+    appearance:none; text-align:left; width:100%; cursor:pointer;
+    border:1px solid var(--border); background:var(--panel); color:var(--text);
+    padding:20px 22px 16px; transition:border-color .15s ease; font-family:inherit;
+  }
+  .bb-flight:hover{border-color:var(--border-strong)}
+  .bb-flight:focus-visible{outline:2px solid var(--steel); outline-offset:3px}
+  .bb-flight:active{border-color:var(--recorded)}
+  .bb-f-top{display:flex; align-items:baseline; justify-content:space-between; gap:14px}
+  .bb-f-name{font-family:var(--head); font-weight:700; letter-spacing:.14em; font-size:15px}
+  .bb-f-dur{font-family:var(--mono); font-size:12.5px; color:var(--muted-corp); font-variant-numeric:tabular-nums}
+  .bb-f-meta{
+    display:block; font-family:var(--mono); font-size:11px; letter-spacing:.06em;
+    color:var(--muted-corp); margin-top:9px;
+  }
+  .bb-replay-head{display:flex; align-items:baseline; justify-content:space-between; gap:14px; margin-top:26px}
+  .bb-replay-name{font-family:var(--head); font-weight:700; letter-spacing:.14em; font-size:16px; margin:0}
+  .chart{margin-top:20px}
+  .chart-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:7px}
+  .chart-head .ch-label{font-family:var(--head); font-weight:600; font-size:11px; letter-spacing:.22em; color:var(--muted-corp); text-transform:uppercase}
+  .chart-head .ch-val{font-family:var(--mono); font-size:12.5px; color:var(--text); font-variant-numeric:tabular-nums}
+  .chart-svg{display:block; width:100%; height:104px; border:1px solid var(--border); background:#050506}
+  .transport{display:flex; align-items:center; gap:16px; margin-top:24px; flex-wrap:wrap}
+  .play-btn{
+    appearance:none; cursor:pointer; border:1px solid var(--ink); background:var(--ink); color:#000;
+    font-family:var(--head); font-weight:700; font-size:12px; letter-spacing:.22em; text-indent:.1em;
+    padding:0 26px; height:46px; border-radius:0; min-width:118px;
+    transition:background .2s ease, border-color .2s ease;
+  }
+  .play-btn:hover{background:var(--steel); border-color:var(--steel)}
+  .play-btn:focus-visible, .spd-btn:focus-visible{outline:2px solid var(--steel); outline-offset:3px}
+  .scrub{flex:1 1 200px; accent-color:var(--recorded); height:44px; cursor:pointer; min-width:140px}
+  .bb-time{font-family:var(--mono); font-size:12.5px; color:var(--muted-corp); font-variant-numeric:tabular-nums; white-space:nowrap}
+  .spd-group{display:inline-flex; border:1px solid var(--border)}
+  .spd-btn{
+    appearance:none; background:none; border:0; cursor:pointer; min-height:44px; padding:0 16px;
+    font-family:var(--mono); font-size:12.5px; color:var(--muted-corp);
+  }
+  .spd-btn.active{background:var(--border); color:var(--text)}
+  .mini-link{
+    appearance:none; background:none; border:0; padding:4px 0; color:var(--muted-corp);
+    font-size:13px; min-height:36px; cursor:pointer; font-family:'Inter', system-ui, sans-serif;
+  }
+  .mini-link:hover{color:var(--accent); text-decoration:underline}
+
+  @media (max-width:760px){
+    .corp-modes{grid-template-columns:1fr}
+    .stat-grid{grid-template-columns:1fr 1fr}
+    .log-head{display:none}
+    .log-row{grid-template-columns:82px 1fr}
+    .log-event{grid-column:1 / -1}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .ripple .ring{animation:none}
+    .view{animation:none}
+    .dot.pulse{animation:none}
+    .logo-mark .ring, .logo-mark .core{animation:none}
+    .sweep span{animation:none}
+    .rise{animation:none}
+    *{transition:none !important}
+  }
+</style>
+</head>
+<body>
+<main class="stage">
+
+  <!-- Gate -->
+  <section class="view" id="gate" aria-label="Zenith">
+    <svg class="ripple" viewBox="0 0 76 76" fill="none" aria-hidden="true">
+      <circle cx="38" cy="38" r="3.2" fill="#F2F2F2"/>
+      <circle class="ring r1" style="--o:1" cx="38" cy="38" r="13" stroke="#F2F2F2" stroke-width="2.4"/>
+      <circle class="ring r2" style="--o:.58" cx="38" cy="38" r="23.5" stroke="#F2F2F2" stroke-width="1.6" opacity=".58"/>
+      <circle class="ring r3" style="--o:.30" cx="38" cy="38" r="35" stroke="#F2F2F2" stroke-width="1" opacity=".30"/>
+    </svg>
+    <h1 class="wordmark">ZENITH</h1>
+    <p class="tagline">FLIGHT MONITORING AND VISUALIZATION</p>
+    <button class="enter-btn" id="enterBtn" type="button">ENTER ZENITH</button>
+  </section>
+
+  <!-- Mode choice — original professional-options Corporate page, unchanged -->
+  <section class="view" id="choice" aria-label="Choose mode" hidden>
+    <div class="corp-inner">
+      <div class="corp-wordmark rise rise-1">
+        <svg class="logo-mark" width="28" height="28" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+          <circle class="ring ring-3" cx="28" cy="28" r="22" stroke="var(--accent)" stroke-width="1" opacity="0.30"/>
+          <circle class="ring ring-2" cx="28" cy="28" r="14.5" stroke="var(--accent)" stroke-width="1.6" opacity="0.58"/>
+          <circle class="ring ring-1" cx="28" cy="28" r="8" stroke="var(--accent)" stroke-width="2.4" opacity="1"/>
+          <circle class="core" cx="28" cy="28" r="3" fill="var(--accent)"/>
+        </svg>
+        <span class="name">ZENITH</span>
+      </div>
+      <div class="version rise rise-2">V1 — MERCURY</div>
+
+      <p class="corp-line rise rise-2">Select a mode to continue.</p>
+
+      <div class="corp-modes">
+        <div class="corp-mode rise rise-3" role="button" tabindex="0" data-mode="realtime" aria-label="Real-time — live telemetry from the active vehicle, KSP-QUAD-01">
+          <div class="cm-top">
+            <h3>Real-time</h3>
+            <span class="badge live"><span class="dot pulse" aria-hidden="true"></span>LIVE</span>
+          </div>
+          <p>Live telemetry from the active vehicle, KSP-QUAD-01.</p>
+          <p class="cm-readout">ALT <span id="bAlt">1,248</span> m · SPD <span id="bSpd">12.4</span> m/s · BAT <span id="bBat">87</span>%</p>
+        </div>
+
+        <div class="corp-mode rise rise-4" role="button" tabindex="0" data-mode="blackbox" aria-label="Blackbox — replay a recorded flight from the archive">
+          <div class="cm-top">
+            <h3>Blackbox</h3>
+            <span class="badge rec"><span class="dot" aria-hidden="true"></span>RECORDED</span>
+          </div>
+          <p>Replay a recorded flight from the archive.</p>
+          <div class="sweep" aria-hidden="true"><span></span></div>
+          <p class="cm-readout">NGAFID C172 · 42:00 · 1 Hz</p>
+        </div>
+      </div>
+
+      <button class="back-link" id="backBtn" type="button">← Back</button>
+    </div>
+  </section>
+
+  <!-- Real-time dashboard -->
+  <section class="view wide-view" id="dashboard" aria-label="Real-time dashboard" hidden>
+    <div class="dash-head">
+      <div class="corp-wordmark">
+        <svg class="logo-mark" width="28" height="28" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+          <circle class="ring ring-3" cx="28" cy="28" r="22" stroke="var(--accent)" stroke-width="1" opacity="0.30"/>
+          <circle class="ring ring-2" cx="28" cy="28" r="14.5" stroke="var(--accent)" stroke-width="1.6" opacity="0.58"/>
+          <circle class="ring ring-1" cx="28" cy="28" r="8" stroke="var(--accent)" stroke-width="2.4" opacity="1"/>
+          <circle class="core" cx="28" cy="28" r="3" fill="var(--accent)"/>
+        </svg>
+        <span class="name">ZENITH</span>
+      </div>
+      <span class="badge live"><span class="dot pulse" aria-hidden="true"></span>LIVE</span>
+    </div>
+    <p class="veh-line">KSP-QUAD-01 · QUADCOPTER · TELEMETRY 1 Hz</p>
+
+    <div class="tabs" role="tablist" aria-label="Dashboard views">
+      <button class="tab active" id="tabDash" type="button" role="tab" aria-selected="true">DASHBOARD</button>
+      <button class="tab" id="tabLogs" type="button" role="tab" aria-selected="false">EVENT LOGS</button>
+    </div>
+
+    <div id="dashMain">
+      <div class="stat-grid">
+        <div class="stat"><span class="stat-label">Altitude</span><span class="stat-value"><span id="dAlt">1,248</span><small> m</small></span></div>
+        <div class="stat"><span class="stat-label">Speed</span><span class="stat-value"><span id="dSpd">12.4</span><small> m/s</small></span></div>
+        <div class="stat"><span class="stat-label">Battery</span><span class="stat-value"><span id="dBat">87</span><small> %</small></span></div>
+        <div class="stat"><span class="stat-label">Time Elapsed</span><span class="stat-value" id="dElapsed">00:00:00</span></div>
+      </div>
+
+      <div class="panel">
+        <h3 class="panel-title">Motor Status</h3>
+        <div class="motor-row">
+          <span class="motor-name">M1</span>
+          <span class="mstat"><label>RPM</label><b data-m="0" data-k="rpm">5,420</b></span>
+          <span class="mstat"><label>THR</label><b data-m="0" data-k="thr">62%</b></span>
+          <span class="mstat"><label>CUR</label><b data-m="0" data-k="cur">8.4 A</b></span>
+          <span class="mstat"><label>TEMP</label><b data-m="0" data-k="temp">41°C</b></span>
+          <span class="mstat"><label>ESC</label><b class="ok">OK</b></span>
+        </div>
+        <div class="motor-row">
+          <span class="motor-name">M2</span>
+          <span class="mstat"><label>RPM</label><b data-m="1" data-k="rpm">5,385</b></span>
+          <span class="mstat"><label>THR</label><b data-m="1" data-k="thr">61%</b></span>
+          <span class="mstat"><label>CUR</label><b data-m="1" data-k="cur">8.2 A</b></span>
+          <span class="mstat"><label>TEMP</label><b data-m="1" data-k="temp">40°C</b></span>
+          <span class="mstat"><label>ESC</label><b class="ok">OK</b></span>
+        </div>
+        <div class="motor-row">
+          <span class="motor-name">M3</span>
+          <span class="mstat"><label>RPM</label><b data-m="2" data-k="rpm">5,460</b></span>
+          <span class="mstat"><label>THR</label><b data-m="2" data-k="thr">63%</b></span>
+          <span class="mstat"><label>CUR</label><b data-m="2" data-k="cur">8.6 A</b></span>
+          <span class="mstat"><label>TEMP</label><b data-m="2" data-k="temp">42°C</b></span>
+          <span class="mstat"><label>ESC</label><b class="ok">OK</b></span>
+        </div>
+        <div class="motor-row">
+          <span class="motor-name">M4</span>
+          <span class="mstat"><label>RPM</label><b data-m="3" data-k="rpm">5,405</b></span>
+          <span class="mstat"><label>THR</label><b data-m="3" data-k="thr">62%</b></span>
+          <span class="mstat"><label>CUR</label><b data-m="3" data-k="cur">8.3 A</b></span>
+          <span class="mstat"><label>TEMP</label><b data-m="3" data-k="temp">41°C</b></span>
+          <span class="mstat"><label>ESC</label><b class="ok">OK</b></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="logMain" hidden>
+      <div class="panel" style="margin-top:0">
+        <div class="log-head" aria-hidden="true"><span>TIME</span><span>TYPE</span><span>LEVEL</span><span>EVENT</span></div>
+        <div class="log-row"><span class="log-time">00:14:52</span><span class="log-type">BATTERY</span><span class="log-level warn">WARNING</span><span class="log-event">Battery below 25% on the reserve pack — return-to-launch advised</span></div>
+        <div class="log-row"><span class="log-time">00:12:37</span><span class="log-type">MODE</span><span class="log-level">INFO</span><span class="log-event">Altitude hold engaged at 1,250 m</span></div>
+        <div class="log-row"><span class="log-time">00:08:03</span><span class="log-type">TELEMETRY</span><span class="log-level">INFO</span><span class="log-event">Downlink stable — frame rate nominal at 1 Hz</span></div>
+        <div class="log-row"><span class="log-time">00:02:15</span><span class="log-type">SITUATION</span><span class="log-level">INFO</span><span class="log-event">Situation changed: FLYING</span></div>
+        <div class="log-row"><span class="log-time">00:00:04</span><span class="log-type">LAUNCH</span><span class="log-level">INFO</span><span class="log-event">Liftoff — KSP-QUAD-01 airborne</span></div>
+      </div>
+    </div>
+
+    <button class="back-link" id="dashBack" type="button" style="align-self:flex-start">← Back</button>
+  </section>
+
+  <!-- Blackbox picker + replay -->
+  <section class="view wide-view" id="blackbox" aria-label="Blackbox recorded flights" hidden>
+    <div class="dash-head">
+      <div class="corp-wordmark">
+        <svg class="logo-mark" width="28" height="28" viewBox="0 0 56 56" fill="none" aria-hidden="true">
+          <circle class="ring ring-3" cx="28" cy="28" r="22" stroke="var(--accent)" stroke-width="1" opacity="0.30"/>
+          <circle class="ring ring-2" cx="28" cy="28" r="14.5" stroke="var(--accent)" stroke-width="1.6" opacity="0.58"/>
+          <circle class="ring ring-1" cx="28" cy="28" r="8" stroke="var(--accent)" stroke-width="2.4" opacity="1"/>
+          <circle class="core" cx="28" cy="28" r="3" fill="var(--accent)"/>
+        </svg>
+        <span class="name">ZENITH</span>
+      </div>
+      <span class="badge rec"><span class="dot" aria-hidden="true"></span>RECORDED</span>
+    </div>
+    <p class="veh-line">FLIGHT ARCHIVE · SELECT A RECORDING TO REPLAY</p>
+
+    <div id="bbPicker">
+      <div class="bb-list">
+        <button class="bb-flight" type="button" data-flight="ngafid">
+          <span class="bb-f-top"><span class="bb-f-name">NGAFID Cessna 172</span><span class="bb-f-dur">42:00</span></span>
+          <span class="bb-f-meta">RECORDED · 1 Hz · 23 SENSORS · TRAINING FLIGHT</span>
+        </button>
+        <button class="bb-flight" type="button" data-flight="ksp">
+          <span class="bb-f-top"><span class="bb-f-name">KSP Quadcopter</span><span class="bb-f-dur">06:40</span></span>
+          <span class="bb-f-meta">RECORDED · KSP SESSION · QUAD TELEMETRY</span>
+        </button>
+        <button class="bb-flight" type="button" data-flight="ntsb">
+          <span class="bb-f-top"><span class="bb-f-name">NTSB Delta A350</span><span class="bb-f-dur">58:31</span></span>
+          <span class="bb-f-meta">RECORDED · FDR EXTRACT · ACCIDENT FLIGHT</span>
+        </button>
+      </div>
+      <button class="back-link" id="bbBack" type="button" style="align-self:flex-start">← Back</button>
+    </div>
+
+    <div id="bbReplay" hidden>
+      <div class="bb-replay-head">
+        <h3 class="bb-replay-name" id="bbFlightName">NGAFID Cessna 172</h3>
+        <button class="mini-link" id="bbAllFlights" type="button">← All flights</button>
+      </div>
+
+      <div class="chart">
+        <div class="chart-head"><span class="ch-label">Altitude</span><span class="ch-val" id="cvAlt">0 m</span></div>
+        <svg class="chart-svg" viewBox="0 0 600 104" preserveAspectRatio="none" aria-hidden="true">
+          <path id="pathAlt" fill="none" stroke="#5AC8E6" stroke-width="1.6"/>
+          <line id="headAlt" x1="0" y1="0" x2="0" y2="104" stroke="#F2F2F2" stroke-width="1" opacity=".6"/>
+        </svg>
+      </div>
+      <div class="chart">
+        <div class="chart-head"><span class="ch-label">Speed</span><span class="ch-val" id="cvSpd">0 m/s</span></div>
+        <svg class="chart-svg" viewBox="0 0 600 104" preserveAspectRatio="none" aria-hidden="true">
+          <path id="pathSpd" fill="none" stroke="#C7D2DE" stroke-width="1.6"/>
+          <line id="headSpd" x1="0" y1="0" x2="0" y2="104" stroke="#F2F2F2" stroke-width="1" opacity=".6"/>
+        </svg>
+      </div>
+      <div class="chart">
+        <div class="chart-head"><span class="ch-label">Battery</span><span class="ch-val" id="cvBat">100%</span></div>
+        <svg class="chart-svg" viewBox="0 0 600 104" preserveAspectRatio="none" aria-hidden="true">
+          <path id="pathBat" fill="none" stroke="#4ADE80" stroke-width="1.6"/>
+          <line id="headBat" x1="0" y1="0" x2="0" y2="104" stroke="#F2F2F2" stroke-width="1" opacity=".6"/>
+        </svg>
+      </div>
+
+      <div class="transport">
+        <button class="play-btn" id="playBtn" type="button">PLAY</button>
+        <input class="scrub" id="scrub" type="range" min="0" max="2520" step="1" value="0" aria-label="Replay timeline scrubber" />
+        <span class="bb-time" id="bbTime">00:00 / 42:00</span>
+        <span class="spd-group" role="group" aria-label="Playback speed">
+          <button class="spd-btn active" id="spd1" type="button">1x</button>
+          <button class="spd-btn" id="spd4" type="button">4x</button>
+        </span>
+      </div>
+    </div>
+  </section>
+
+</main>
+<script>
+  var gate = document.getElementById('gate');
+  var choice = document.getElementById('choice');
+  var dashboard = document.getElementById('dashboard');
+  var blackbox = document.getElementById('blackbox');
+  var allViews = [gate, choice, dashboard, blackbox];
+  function show(el){
+    allViews.forEach(function(v){ v.hidden = (v !== el); });
+    // restart entry animation
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+    var f = el.querySelector('button, [role="button"]');
+    if (f) f.focus({preventScroll:true});
+  }
+  document.getElementById('enterBtn').addEventListener('click', function(){ show(choice); });
+  document.getElementById('backBtn').addEventListener('click', function(){ show(gate); });
+  document.getElementById('dashBack').addEventListener('click', function(){ show(choice); });
+  document.getElementById('bbBack').addEventListener('click', function(){ show(choice); });
+  document.querySelectorAll('.corp-mode').forEach(function(tile){
+    function press(){
+      if (tile.getAttribute('data-mode') === 'realtime'){
+        show(dashboard);
+        startDash();
+      } else {
+        show(blackbox);
+      }
+    }
+    tile.addEventListener('click', press);
+    tile.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        press();
+      }
+    });
+  });
+
+  /* Landing telemetry drift on the Real-time card (as on the original page) */
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduceMotion){
+    var lAlt = 1248, lSpd = 12.4;
+    var lAltEl = document.getElementById('bAlt');
+    var lSpdEl = document.getElementById('bSpd');
+    function fmt(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    setInterval(function(){
+      if (choice.hidden) return;
+      lAlt = Math.max(1180, Math.min(1320, lAlt + Math.round((Math.random() - 0.5) * 14)));
+      lSpd = Math.max(9, Math.min(16, lSpd + (Math.random() - 0.5) * 0.8));
+      lAltEl.textContent = fmt(lAlt);
+      lSpdEl.textContent = lSpd.toFixed(1);
+    }, 2600);
+  }
+
+  /* ——— Real-time dashboard ——— */
+  function pad2(n){ return (n < 10 ? '0' : '') + n; }
+  function fmtHMS(s){
+    return pad2(Math.floor(s / 3600)) + ':' + pad2(Math.floor(s % 3600 / 60)) + ':' + pad2(s % 60);
+  }
+  function fmtMS(s){
+    s = Math.round(s);
+    if (s >= 3600) return fmtHMS(s);
+    return pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
+  }
+  function fmtInt(n){ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  var tabDash = document.getElementById('tabDash');
+  var tabLogs = document.getElementById('tabLogs');
+  var dashMain = document.getElementById('dashMain');
+  var logMain = document.getElementById('logMain');
+  function setTab(logs){
+    tabDash.classList.toggle('active', !logs);
+    tabLogs.classList.toggle('active', logs);
+    tabDash.setAttribute('aria-selected', String(!logs));
+    tabLogs.setAttribute('aria-selected', String(logs));
+    dashMain.hidden = logs;
+    logMain.hidden = !logs;
+  }
+  tabDash.addEventListener('click', function(){ setTab(false); });
+  tabLogs.addEventListener('click', function(){ setTab(true); });
+
+  var dashStarted = false, dashT = 0;
+  var dAlt = 1248, dSpd = 12.4, dBat = 87;
+  var motors = [
+    {rpm:5420, thr:62, cur:8.4, temp:41},
+    {rpm:5385, thr:61, cur:8.2, temp:40},
+    {rpm:5460, thr:63, cur:8.6, temp:42},
+    {rpm:5405, thr:62, cur:8.3, temp:41}
+  ];
+  var motorEls = document.querySelectorAll('[data-m]');
+  function startDash(){
+    if (dashStarted) return;
+    dashStarted = true;
+    setInterval(function(){
+      dashT++;
+      document.getElementById('dElapsed').textContent = fmtHMS(dashT);
+      if (dashboard.hidden || reduceMotion) return;
+      dAlt = Math.max(1180, Math.min(1320, dAlt + Math.round((Math.random() - 0.5) * 12)));
+      dSpd = Math.max(9, Math.min(16, dSpd + (Math.random() - 0.5) * 0.7));
+      if (dashT % 45 === 0 && dBat > 20) dBat--;
+      document.getElementById('dAlt').textContent = fmtInt(dAlt);
+      document.getElementById('dSpd').textContent = dSpd.toFixed(1);
+      document.getElementById('dBat').textContent = dBat;
+      motors.forEach(function(m){
+        m.rpm = Math.max(5100, Math.min(5750, m.rpm + Math.round((Math.random() - 0.5) * 90)));
+        m.thr = Math.max(57, Math.min(68, m.thr + Math.round((Math.random() - 0.5) * 2)));
+        m.cur = Math.max(7.4, Math.min(9.4, m.cur + (Math.random() - 0.5) * 0.3));
+        m.temp = Math.max(38, Math.min(45, m.temp + Math.round((Math.random() - 0.5) * 1)));
+      });
+      motorEls.forEach(function(el){
+        var m = motors[+el.getAttribute('data-m')], k = el.getAttribute('data-k');
+        if (k === 'rpm') el.textContent = fmtInt(m.rpm);
+        else if (k === 'thr') el.textContent = m.thr + '%';
+        else if (k === 'cur') el.textContent = m.cur.toFixed(1) + ' A';
+        else if (k === 'temp') el.textContent = m.temp + '°C';
+      });
+    }, 1000);
+  }
+
+  /* ——— Blackbox replay ——— */
+  function seededRand(seed){
+    var s = seed % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return function(){ s = s * 16807 % 2147483647; return (s - 1) / 2147483646; };
+  }
+  var FLIGHTS = {
+    ngafid: {name:'NGAFID Cessna 172', dur:2520, cruise:1150, maxSpd:64, batEnd:76, seed:1201},
+    ksp:    {name:'KSP Quadcopter',    dur:400,  cruise:460,  maxSpd:36, batEnd:14, seed:733},
+    ntsb:   {name:'NTSB Delta A350',   dur:3511, cruise:9800, maxSpd:245, batEnd:63, seed:9021}
+  };
+  var SAMPLES = 240;
+  function buildTrace(f){
+    var rnd = seededRand(f.seed);
+    var alt = [], spd = [], bat = [], noise = 0;
+    for (var i = 0; i <= SAMPLES; i++){
+      var x = i / SAMPLES;
+      var env = Math.min(1, x / 0.10) * Math.min(1, (1 - x) / 0.12);
+      env = Math.max(0, env);
+      noise += (rnd() - 0.5) * 0.05;
+      noise = Math.max(-0.05, Math.min(0.05, noise));
+      alt.push(f.cruise * Math.pow(env, 0.8) * (1 + noise));
+      spd.push(f.maxSpd * Math.pow(env, 0.6) * (1 + noise * 1.4));
+      bat.push(100 - (100 - f.batEnd) * x - Math.max(0, env) * 2);
+    }
+    return {alt:alt, spd:spd, bat:bat};
+  }
+  function pathFrom(data, w, h, pad){
+    var min = Math.min.apply(null, data), max = Math.max.apply(null, data);
+    if (max - min < 1) max = min + 1;
+    var span = max - min, lo = min - span * 0.08;
+    var d = '';
+    for (var i = 0; i < data.length; i++){
+      var x = (i / (data.length - 1)) * w;
+      var y = h - pad - ((data[i] - lo) / (span * 1.16)) * (h - pad * 2);
+      d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+    }
+    return d;
+  }
+  function sampleAt(data, frac){
+    var pos = frac * (data.length - 1);
+    var i = Math.floor(pos), j = Math.min(data.length - 1, i + 1);
+    return data[i] + (data[j] - data[i]) * (pos - i);
+  }
+
+  var bbPicker = document.getElementById('bbPicker');
+  var bbReplay = document.getElementById('bbReplay');
+  var playBtn = document.getElementById('playBtn');
+  var scrub = document.getElementById('scrub');
+  var bbTime = document.getElementById('bbTime');
+  var cur = null, trace = null, bbT = 0, playing = false, speed = 1, bbTimer = null;
+
+  function bbRender(){
+    if (!cur) return;
+    var frac = cur.dur ? bbT / cur.dur : 0;
+    var x = (frac * 600).toFixed(1);
+    ['headAlt','headSpd','headBat'].forEach(function(id){
+      var ln = document.getElementById(id);
+      ln.setAttribute('x1', x); ln.setAttribute('x2', x);
+    });
+    document.getElementById('cvAlt').textContent = fmtInt(sampleAt(trace.alt, frac)) + ' m';
+    document.getElementById('cvSpd').textContent = sampleAt(trace.spd, frac).toFixed(1) + ' m/s';
+    document.getElementById('cvBat').textContent = Math.round(sampleAt(trace.bat, frac)) + '%';
+    scrub.value = Math.round(bbT);
+    bbTime.textContent = fmtMS(bbT) + ' / ' + fmtMS(cur.dur);
+  }
+  function bbPlay(state){
+    playing = state;
+    playBtn.textContent = playing ? 'PAUSE' : 'PLAY';
+    if (bbTimer){ clearInterval(bbTimer); bbTimer = null; }
+    if (playing){
+      bbTimer = setInterval(function(){
+        bbT += 0.25 * speed;
+        if (bbT >= cur.dur){ bbT = cur.dur; bbRender(); bbPlay(false); return; }
+        bbRender();
+      }, 250);
+    }
+  }
+  function openFlight(key){
+    cur = FLIGHTS[key];
+    trace = buildTrace(cur);
+    bbT = 0;
+    bbPlay(false);
+    document.getElementById('bbFlightName').textContent = cur.name;
+    document.getElementById('pathAlt').setAttribute('d', pathFrom(trace.alt, 600, 104, 8));
+    document.getElementById('pathSpd').setAttribute('d', pathFrom(trace.spd, 600, 104, 8));
+    document.getElementById('pathBat').setAttribute('d', pathFrom(trace.bat, 600, 104, 8));
+    scrub.max = cur.dur;
+    bbPicker.hidden = true;
+    bbReplay.hidden = false;
+    bbRender();
+    playBtn.focus({preventScroll:true});
+  }
+  document.querySelectorAll('.bb-flight').forEach(function(btn){
+    btn.addEventListener('click', function(){ openFlight(btn.getAttribute('data-flight')); });
+  });
+  document.getElementById('bbAllFlights').addEventListener('click', function(){
+    bbPlay(false);
+    bbReplay.hidden = true;
+    bbPicker.hidden = false;
+  });
+  playBtn.addEventListener('click', function(){
+    if (!playing && bbT >= cur.dur) bbT = 0;
+    bbPlay(!playing);
+  });
+  scrub.addEventListener('input', function(){
+    bbT = +scrub.value;
+    bbRender();
+  });
+  var spd1 = document.getElementById('spd1'), spd4 = document.getElementById('spd4');
+  function setSpeed(s){
+    speed = s;
+    spd1.classList.toggle('active', s === 1);
+    spd4.classList.toggle('active', s === 4);
+  }
+  spd1.addEventListener('click', function(){ setSpeed(1); });
+  spd4.addEventListener('click', function(){ setSpeed(4); });
+</script>
+</body>
+</html>
